@@ -32,7 +32,11 @@ class Settings(BaseSettings):
     # --- Aplikasi & Server ---
     app_name: str = "CodeTalk"
     app_version: str = "0.1.0"
-    debug: bool = False
+    debug: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("APP_DEBUG", "CODETALK_DEBUG"),
+        description="Mode debug/reload server (pakai APP_DEBUG agar tidak bentrok dengan env DEBUG OS).",
+    )
     host: str = "0.0.0.0"
     port: int = 8000
     cors_origins: list[str] = Field(
