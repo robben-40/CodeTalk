@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #253049;
+  --color-muted: #657086;
+  --color-canvas: #f4f6f9;
+  --color-accent: #5963df;
+  --breakpoint-workspace: 60.0625rem;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  button,
+  summary,
+  select {
+    cursor: pointer;
+  }
+  button:disabled,
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  .button {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[9px] border-0 px-3 py-2.5 text-[15px] leading-5 font-semibold whitespace-nowrap max-[360px]:gap-1.5 max-[360px]:px-2 max-[360px]:text-[13px];
+  }
+  .button-new {
+    @apply bg-[#d5f3b4] text-[#2e6037] hover:bg-[#c8eca0] disabled:bg-[#e0f2c9] disabled:text-[#587346];
+  }
+  .export-item {
+    @apply flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[15px] hover:bg-slate-50 disabled:opacity-40;
+  }
+  .export-item span {
+    @apply text-[13px] text-muted;
+  }
+  .context-field {
+    @apply flex min-w-0 flex-col gap-[7px] text-sm;
+  }
+  .context-field > span {
+    @apply min-h-[21px] font-medium max-[520px]:min-h-[42px];
+  }
+  .context-field small {
+    @apply text-[13px] leading-5 font-normal text-muted;
+  }
+  .context-field input,
+  .context-field select {
+    @apply w-full min-w-0 rounded-lg border border-[#e3e7ee] bg-[#fafbfc] px-2.5 py-2.5 text-base leading-6 text-ink disabled:text-muted;
+  }
+  .context-field input::placeholder {
+    color: #788297;
+    opacity: 1;
+  }
+  .panel-header {
+    @apply flex min-h-[80px] shrink-0 items-center justify-between gap-2.5 px-5 py-[18px] max-[520px]:grid max-[520px]:grid-cols-1 max-[520px]:gap-3 max-[520px]:px-4;
+  }
+  .panel-header > .button {
+    @apply text-sm max-[520px]:w-full;
+  }
+  .panel-heading {
+    @apply flex min-h-[30px] min-w-0 items-center gap-2;
+  }
+  .panel-heading h2 {
+    @apply text-lg font-semibold tracking-tight whitespace-nowrap max-[520px]:text-[17px];
+  }
+  .panel-scroll {
+    @apply min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-5 pt-1 pb-6 max-[520px]:px-4;
+    scrollbar-width: thin;
+    scrollbar-color: #dce1eb transparent;
+  }
+  .utterance {
+    @apply mb-6 grid grid-cols-[43px_minmax(0,1fr)] gap-3 max-[760px]:grid-cols-1 max-[760px]:gap-1;
+  }
+  .utterance time {
+    @apply font-mono text-xs leading-7 text-muted tabular-nums;
+  }
+  .utterance p {
+    @apply text-base leading-[1.8] text-[#3b465e] wrap-anywhere;
+  }
+  .empty-state {
+    @apply flex min-h-full flex-col items-center justify-center gap-3 px-3 py-8 text-center;
+  }
+  .empty-state h3 {
+    @apply text-lg font-semibold;
+  }
+  .empty-state p {
+    @apply max-w-[280px] text-[15px] leading-7 text-muted;
+  }
+  .empty-icon {
+    @apply grid size-11 place-items-center rounded-xl bg-[#f1f3fd] text-accent;
+  }
+  .note-document {
+    @apply text-base leading-[1.8] text-[#4b566d] wrap-anywhere;
+  }
+  .note-document > :first-child {
+    margin-top: 0;
+  }
+  .note-document h1,
+  .note-document h2 {
+    @apply mt-7 mb-3 text-[25px] leading-snug font-semibold tracking-tight text-ink;
+  }
+  .note-document h3,
+  .note-document h4 {
+    @apply mt-6 mb-2 text-lg font-semibold text-ink;
+  }
+  .note-document p {
+    @apply my-3;
+  }
+  .note-document ul,
+  .note-document ol {
+    @apply my-3 pl-5;
+  }
+  .note-document ul {
+    @apply list-disc;
+  }
+  .note-document ol {
+    @apply list-decimal;
+  }
+  .note-document li {
+    @apply my-1.5 pl-1;
+  }
+  .note-document li::marker {
+    color: #a4acc2;
+  }
+  .note-document strong {
+    @apply font-semibold text-ink;
+  }
+  .note-document a {
+    @apply text-accent underline underline-offset-2;
+  }
+  .note-document :not(pre) > code {
+    @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.9em] text-[#4e5b87];
+  }
+  .note-document blockquote {
+    @apply my-5 rounded-xl bg-[#f8f9fd] p-4 text-muted;
+  }
+  .note-code {
+    @apply my-5 rounded-xl bg-[#f6f7fc] p-4;
+  }
+  .note-code pre {
+    @apply m-0 font-mono text-sm leading-[1.95] whitespace-pre-wrap wrap-anywhere;
+  }
+  .note-code pre code {
+    color: #44516d;
+    font: inherit;
+  }
+}
+
+.print-notes {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto;
+    min-width: 0;
+    background: white;
+  }
+  .app-shell,
+  [data-no-print] {
+    display: none !important;
+  }
+  .print-notes {
+    display: block;
+    color: #202b40;
+    font-size: 11pt;
+  }
+  .print-notes > header {
+    margin-bottom: 24px;
+  }
+  .print-notes > header h1 {
+    font-size: 24pt;
+    font-weight: 600;
+  }
+  .print-notes > header p {
+    margin-top: 6px;
+    color: #657086;
+  }
+  .note-document {
+    font-size: 11pt;
+  }
+  .note-document h1,
+  .note-document h2,
+  .note-document h3,
+  .note-document h4 {
+    break-after: avoid;
+  }
+  .note-code {
+    print-color-adjust: exact;
+  }
+  .note-code pre {
+    font-size: 9pt;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
