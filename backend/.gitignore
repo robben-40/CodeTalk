@@ -1,0 +1,4 @@
+*.wav
+tests/rekaman.wav
+.python-version
+.venv
