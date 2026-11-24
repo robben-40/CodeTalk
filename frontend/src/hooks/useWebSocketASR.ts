@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { backendUrl } from "../api";
+import { backendUrl, type UploadTranscriptionResponse } from "../api";
 import type {
   ServerStatus,
   TelemetrySample,
@@ -315,6 +315,65 @@ export function useWebSocketASR(onFailure: (message: string) => void) {
     return current.stopPromise;
   }, []);
 
+  const loadUploadedResult = useCallback(
+    (result: UploadTranscriptionResponse) => {
+      cancel();
+      const rawSegments = Array.isArray(result.segments) ? result.segments : [];
+      const segments: TranscriptSegment[] = rawSegments
+        .filter((seg) => typeof seg?.text === "string" && seg.text.trim())
+        .map((seg, index) => ({
+          id: index,
+          text: seg.text.trim(),
+          seconds: finite(seg.start) ?? 0,
+        }));
+      const finalText =
+        typeof result.text === "string" && result.text.trim()
+          ? result.text.trim()
+          : segments.map((seg) => seg.text).join(" ").trim();
+      if (segments.length === 0 && finalText) {
+        segments.push({ id: 0, text: finalText, seconds: 0 });
+      }
+      snapshot.current = {
+        finalText,
+        partialText: "",
+        partialSeconds: 0,
+        segments,
+      };
+      const latencyMs = finite(result.latency_ms);
+      const rtf = finite(result.rtf);
+      const durationSec = finite(result.audio_duration_sec);
+      samples.current = [
+        {
+          received_at: new Date().toISOString(),
+          latency_ms: latencyMs,
+          rtf,
+          window_start_sec: 0,
+          window_end_sec: durationSec,
+        },
+      ];
+      metadata.current = {
+        mode: "upload",
+        filename: result.filename,
+        topic: result.topic,
+        model_size: result.model_size,
+        language: result.language,
+        audio_duration_sec: durationSec,
+        completed_at: new Date().toISOString(),
+      };
+      summary.current = {
+        latency_ms: latencyMs,
+        rtf,
+        audio_duration_sec: durationSec,
+        processing_time_sec: finite(result.processing_time_sec),
+      };
+      setTranscript(snapshot.current);
+      setMetrics({ latencyMs, rtf });
+      setServerStatus("stopped");
+      setError(null);
+    },
+    [cancel],
+  );
+
   const getSessionLog = useCallback(
     () => ({
       ...metadata.current,
@@ -338,6 +397,7 @@ export function useWebSocketASR(onFailure: (message: string) => void) {
     stop,
     cancel,
     reset,
+    loadUploadedResult,
     getSessionLog,
   };
 }

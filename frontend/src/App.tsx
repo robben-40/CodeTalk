@@ -5,7 +5,12 @@ import LiveTranscript from "./components/LiveTranscript";
 import SmartNotesPanel, { MarkdownNotes } from "./components/SmartNotesPanel";
 import { audioErrorMessage, useAudioStream } from "./hooks/useAudioStream";
 import { useWebSocketASR } from "./hooks/useWebSocketASR";
-import { downloadText, fetchTopics, requestSmartNotes } from "./api";
+import {
+  downloadText,
+  fetchTopics,
+  requestSmartNotes,
+  transcribeAudioFile,
+} from "./api";
 import {
   FALLBACK_TOPICS,
   type DisplayStatus,
@@ -27,16 +32,22 @@ export default function App() {
   const [view, setView] = useState<"transcript" | "notes">("transcript");
   const [notes, setNotes] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDuration, setUploadDuration] = useState<number | null>(null);
   const [uiError, setUiError] = useState<string | null>(null);
   const mounted = useRef(true);
   const operation = useRef(0);
   const noteRequest = useRef(0);
   const notesAbort = useRef<AbortController | null>(null);
+  const uploadAbort = useRef<AbortController | null>(null);
   const failureHandler = useRef<(message: string) => void>(() => {});
   const audio = useAudioStream();
   const asr = useWebSocketASR((message) => failureHandler.current(message));
   const busy =
-    phase === "connecting" || phase === "recording" || phase === "stopping";
+    uploading ||
+    phase === "connecting" ||
+    phase === "recording" ||
+    phase === "stopping";
   const setPhase = useCallback((next: SessionPhase) => {
     phaseRef.current = next;
     if (mounted.current) setPhaseState(next);
@@ -49,6 +60,7 @@ export default function App() {
       operation.current++;
       noteRequest.current++;
       notesAbort.current?.abort();
+      uploadAbort.current?.abort();
     };
   }, []);
 
@@ -117,6 +129,7 @@ export default function App() {
     noteRequest.current++;
     setGenerating(false);
     setNotes("");
+    setUploadDuration(null);
     setSessionTopic(topic);
     setUiError(null);
     setView("transcript");
@@ -164,14 +177,55 @@ export default function App() {
     operation.current++;
     noteRequest.current++;
     notesAbort.current?.abort();
+    uploadAbort.current?.abort();
     asr.reset();
     audio.reset();
     setNotes("");
     setGenerating(false);
+    setUploadDuration(null);
     setExtraTerms("");
     setUiError(null);
     setView("transcript");
     setPhase("idle");
+  };
+
+  const handleUploadAudio = async (file: File) => {
+    if (busy || loadingTopics) return;
+    const ticket = ++operation.current;
+    notesAbort.current?.abort();
+    noteRequest.current++;
+    uploadAbort.current?.abort();
+    const controller = new AbortController();
+    uploadAbort.current = controller;
+    setGenerating(false);
+    setNotes("");
+    setUploadDuration(null);
+    setSessionTopic(topic);
+    setUiError(null);
+    setView("transcript");
+    asr.reset();
+    audio.reset();
+    setUploading(true);
+    try {
+      const result = await transcribeAudioFile(
+        file,
+        topic,
+        extraTerms,
+        controller.signal,
+      );
+      if (!mounted.current || ticket !== operation.current) return;
+      asr.loadUploadedResult(result);
+      setUploadDuration(result.audio_duration_sec);
+      setPhase("stopped");
+    } catch (error) {
+      if (!mounted.current || ticket !== operation.current) return;
+      setUiError(audioErrorMessage(error));
+      setPhase("error");
+    } finally {
+      if (mounted.current && ticket === operation.current) {
+        setUploading(false);
+      }
+    }
   };
 
   const generateNotes = async () => {
@@ -233,8 +287,9 @@ export default function App() {
   };
 
   const error = uiError || asr.error || topicsError;
-  const status: DisplayStatus =
-    phase === "recording"
+  const status: DisplayStatus = uploading
+    ? "processing"
+    : phase === "recording"
       ? asr.serverStatus === "processing"
         ? "processing"
         : "listening"
@@ -318,7 +373,7 @@ export default function App() {
             active={view === "transcript"}
             phase={phase}
             status={status}
-            duration={audio.duration}
+            duration={uploadDuration ?? audio.duration}
             segments={asr.segments}
             partial={asr.partialText}
             partialSeconds={asr.partialSeconds}
@@ -326,7 +381,9 @@ export default function App() {
             rtf={asr.rtf}
             level={audio.level}
             loadingTopics={loadingTopics}
+            uploading={uploading}
             onRecord={() => void record()}
+            onUploadAudio={(file) => void handleUploadAudio(file)}
           />
           <SmartNotesPanel
             active={view === "notes"}
@@ -334,6 +391,7 @@ export default function App() {
             loading={generating}
             canGenerate={
               Boolean(asr.finalText.trim()) &&
+              !uploading &&
               phase !== "connecting" &&
               phase !== "stopping"
             }

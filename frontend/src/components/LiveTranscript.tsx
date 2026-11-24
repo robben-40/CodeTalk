@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Captions, LoaderCircle, Mic } from "lucide-react";
+import { ArrowDown, Captions, LoaderCircle, Mic, Upload } from "lucide-react";
 import StatusTelemetry from "./StatusTelemetry";
 import {
   formatDuration,
@@ -20,16 +20,21 @@ interface Props {
   rtf: number | null;
   level: number;
   loadingTopics: boolean;
+  uploading: boolean;
   onRecord: () => void;
+  onUploadAudio: (file: File) => void;
 }
 
 export default function LiveTranscript(props: Props) {
   const scroll = useRef<HTMLDivElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const follow = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
   const hasText = props.segments.length > 0 || Boolean(props.partial);
   const recording = props.phase === "recording";
   const pending = props.phase === "connecting" || props.phase === "stopping";
+  const uploadDisabled =
+    recording || pending || props.uploading || props.loadingTopics;
 
   useEffect(() => {
     if (follow.current && scroll.current)
@@ -64,32 +69,67 @@ export default function LiveTranscript(props: Props) {
             {formatDuration(props.duration)}
           </time>
         </div>
-        <button
-          type="button"
-          className="button bg-[#d33d45] text-white hover:bg-[#bf3039] disabled:opacity-60"
-          onClick={props.onRecord}
-          disabled={props.phase === "stopping" || props.loadingTopics}
-        >
-          {pending ? (
-            <LoaderCircle
-              size={15}
-              className="motion-safe:animate-spin"
-              aria-hidden="true"
-            />
-          ) : (
-            <span
-              className={`size-2.5 bg-white ${recording ? "rounded-sm" : "rounded-full"}`}
-              aria-hidden="true"
-            />
-          )}
-          {props.phase === "connecting"
-            ? "Batalkan"
-            : props.phase === "stopping"
-              ? "Menyelesaikan…"
-              : recording
-                ? "Akhiri rekaman"
-                : "Mulai rekam"}
-        </button>
+        <div className="flex items-center gap-2 max-[520px]:grid max-[520px]:grid-cols-2">
+          <input
+            ref={fileInput}
+            type="file"
+            accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) props.onUploadAudio(file);
+            }}
+          />
+          <button
+            type="button"
+            className="button border border-slate-200 bg-white text-sm text-ink hover:bg-slate-50 disabled:opacity-60"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploadDisabled}
+            title="Unggah rekaman audio (WAV, MP3, M4A, OGG, FLAC, WEBM)"
+          >
+            {props.uploading ? (
+              <LoaderCircle
+                size={15}
+                className="motion-safe:animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Upload size={15} aria-hidden="true" />
+            )}
+            {props.uploading ? "Memproses…" : "Upload audio"}
+          </button>
+          <button
+            type="button"
+            className="button bg-[#d33d45] text-sm text-white hover:bg-[#bf3039] disabled:opacity-60"
+            onClick={props.onRecord}
+            disabled={
+              props.phase === "stopping" ||
+              props.loadingTopics ||
+              props.uploading
+            }
+          >
+            {pending ? (
+              <LoaderCircle
+                size={15}
+                className="motion-safe:animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <span
+                className={`size-2.5 bg-white ${recording ? "rounded-sm" : "rounded-full"}`}
+                aria-hidden="true"
+              />
+            )}
+            {props.phase === "connecting"
+              ? "Batalkan"
+              : props.phase === "stopping"
+                ? "Menyelesaikan…"
+                : recording
+                  ? "Akhiri rekaman"
+                  : "Mulai rekam"}
+          </button>
+        </div>
       </header>
       <div className="relative min-h-0">
         <div
@@ -139,20 +179,24 @@ export default function LiveTranscript(props: Props) {
                 <Mic size={21} aria-hidden="true" />
               </span>
               <h3>
-                {props.phase === "connecting"
-                  ? "Menyiapkan sesi…"
-                  : props.phase === "recording"
-                    ? "Mendengarkan…"
-                    : props.phase === "error"
-                      ? "Sesi belum dapat dilanjutkan"
-                      : "Siap mengikuti kuliah?"}
+                {props.uploading
+                  ? "Mentranskrip audio…"
+                  : props.phase === "connecting"
+                    ? "Menyiapkan sesi…"
+                    : props.phase === "recording"
+                      ? "Mendengarkan…"
+                      : props.phase === "error"
+                        ? "Sesi belum dapat dilanjutkan"
+                        : "Siap mengikuti kuliah?"}
               </h3>
               <p>
-                {props.phase === "connecting"
-                  ? "Tunggu hingga model dan mikrofon siap."
-                  : props.phase === "recording"
-                    ? "Transkrip akan muncul saat ada ucapan."
-                    : "Pilih konteks mata kuliah, lalu mulai merekam."}
+                {props.uploading
+                  ? "Model ASR lokal sedang memproses file audio yang diunggah."
+                  : props.phase === "connecting"
+                    ? "Tunggu hingga model dan mikrofon siap."
+                    : props.phase === "recording"
+                      ? "Transkrip akan muncul saat ada ucapan."
+                      : "Pilih konteks mata kuliah, lalu mulai merekam atau unggah file audio."}
               </p>
             </div>
           )}

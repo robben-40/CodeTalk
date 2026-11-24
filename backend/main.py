@@ -129,6 +129,7 @@ def create_app() -> FastAPI:
     # - Orang 2 (`app/api/ws_stream.py`): definisikan `router = APIRouter()` untuk WebSocket streaming
     # - Orang 4 (`app/api/routes_notes.py`): definisikan `router = APIRouter()` untuk LLM summarizer
     _mount_optional_router(app, "app.api.ws_stream", tags=["stream"])
+    _mount_optional_router(app, "app.api.routes_audio", prefix="/api", tags=["asr"])
     _mount_optional_router(app, "app.api.routes_notes", prefix="/api", tags=["notes"])
 
     return app

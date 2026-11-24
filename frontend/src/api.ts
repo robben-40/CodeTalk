@@ -64,6 +64,69 @@ export async function requestSmartNotes(
   return data.markdown;
 }
 
+export interface UploadTranscriptionSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface UploadTranscriptionResponse {
+  text: string;
+  segments: UploadTranscriptionSegment[];
+  language: string;
+  audio_duration_sec: number;
+  processing_time_sec: number;
+  latency_ms: number;
+  rtf: number;
+  topic: string;
+  model_size: string;
+  filename: string;
+}
+
+export async function transcribeAudioFile(
+  file: File,
+  topic: string,
+  extraTerms: string,
+  signal?: AbortSignal,
+): Promise<UploadTranscriptionResponse> {
+  const url = backendUrl("/api/transcribe-audio");
+  url.searchParams.set("topic", topic);
+  url.searchParams.set("filename", file.name);
+  const terms = [
+    ...new Set(
+      extraTerms
+        .split(",")
+        .map((term) => term.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (terms.length) url.searchParams.set("extra_terms", terms.join(","));
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+    signal,
+  });
+
+  if (!response.ok) {
+    let detail = "Gagal mentranskrip file audio. Periksa format file lalu coba lagi.";
+    try {
+      const errData = await response.json();
+      if (typeof errData?.detail === "string" && errData.detail.trim()) {
+        detail = errData.detail;
+      }
+    } catch {
+      /* Gunakan pesan default jika body bukan JSON. */
+    }
+    throw new Error(detail);
+  }
+
+  return (await response.json()) as UploadTranscriptionResponse;
+}
+
 export function downloadText(
   text: string,
   filename: string,
