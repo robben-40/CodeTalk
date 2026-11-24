@@ -33,6 +33,7 @@ from typing import Any
 
 import numpy as np
 
+from app.asr_local.cs_prompts import get_initial_prompt
 from app.asr_local.engine import LocalASREngine, TranscriptionResult
 from app.asr_local.streaming_policy import StreamingPolicy, StreamingUpdate
 from app.audio.preprocessor import Preprocessor
@@ -101,8 +102,10 @@ class SlidingWindowStreamer:
         # State sesi
         self._utterance_open = False  # True dari "speech_start" sampai finalisasi karena hening
         self._in_speech = False  # True kalau VAD saat ini bilang "sedang bicara"
+        self._utterance_start_sample: int | None = None
         self._last_speech_end_sample: int | None = None
         self._last_infer_total = 0  # total sampel saat inferensi terakhir
+        self._base_prompt = get_initial_prompt(topic=topic, extra_terms=extra_terms)
 
     # ------------------------------------------------------------------
     # Logika inti
@@ -110,6 +113,8 @@ class SlidingWindowStreamer:
     def _handle_vad_events(self, events: list[VADEvent]) -> None:
         for ev in events:
             if ev.kind == SPEECH_START:
+                if not self._utterance_open:
+                    self._utterance_start_sample = int(ev.sample_index)
                 self._utterance_open = True
                 self._in_speech = True
                 self._last_speech_end_sample = None
@@ -122,20 +127,39 @@ class SlidingWindowStreamer:
             return 0.0
         return max(0.0, (total_samples - self._last_speech_end_sample) / float(self._sr))
 
+    def _build_rolling_prompt(self) -> str:
+        """Gabungkan CS initial_prompt dengan 20 kata terakhir agar konteks antar-jendela terjaga."""
+        committed = self._policy.committed_transcript.strip()
+        if not committed:
+            return self._base_prompt
+        tail_words = committed.split()[-20:]
+        tail = " ".join(tail_words)
+        return f"{self._base_prompt} {tail}".strip()
+
     def _read_and_transcribe(self, start: int, end: int) -> TranscriptionResult:
         """Bagian BERAT & blocking: dijalankan di thread terpisah (bukan di event loop)."""
         raw = self._buffer.read(start, end)  # int16, salinan aman
         audio = self._pre(raw)  # float32 (-1..1), sudah dibersihkan
+        # vad_filter=False: Silero VAD sudah dijalankan oleh VADProcessor;
+        # menghindari double-VAD yang memperlambat inferensi & memotong awal kata.
         return self._engine.transcribe(
             audio,
             topic=self._topic,
             extra_terms=self._extra_terms,
+            initial_prompt=self._build_rolling_prompt(),
+            temperature=0.0,
+            best_of=1,
+            max_new_tokens=96,
+            vad_filter=False,
             sample_rate=self._sr,
         )
 
     async def _infer(self, total: int, *, force_final: bool) -> StepResult | None:
         t0 = time.perf_counter()
         start, end = self._policy.get_window_samples(total, self._sr)
+        # Jangan kirim keheningan panjang sebelum ucapan dimulai ke Whisper.
+        if self._utterance_start_sample is not None:
+            start = min(end, max(start, self._utterance_start_sample))
         if end - start < self._min_window_samples:
             return None
 
@@ -157,6 +181,7 @@ class SlidingWindowStreamer:
             # Kalimat sudah difinalkan oleh policy -> tutup utterance, berhenti inferensi
             # sampai VAD mendeteksi suara baru.
             self._utterance_open = False
+            self._utterance_start_sample = None
             self._last_speech_end_sample = None
 
         return StepResult(

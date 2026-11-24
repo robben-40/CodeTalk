@@ -71,9 +71,9 @@ class Settings(BaseSettings):
         description="Direktori cache/penyimpanan lokal bobot model faster-whisper.",
     )
     asr_cpu_threads: int = Field(
-        default=0,
+        default=4,
         ge=0,
-        description="Jumlah thread CPU untuk CTranslate2 (0 = otomatis).",
+        description="Jumlah thread CPU untuk CTranslate2 (4 optimal untuk performance cores; 0 = otomatis).",
     )
     asr_num_workers: int = Field(
         default=1,
@@ -107,8 +107,8 @@ class Settings(BaseSettings):
     audio_sample_rate: int = Field(default=16000, ge=8000)
     audio_channels: int = Field(default=1, ge=1)
     audio_buffer_max_seconds: float = Field(default=30.0, gt=0.0)
-    streaming_step_seconds: float = Field(default=0.6, gt=0.0)
-    streaming_window_seconds: float = Field(default=6.0, gt=0.5)
+    streaming_step_seconds: float = Field(default=0.8, gt=0.0)
+    streaming_window_seconds: float = Field(default=5.0, gt=0.5)
     streaming_min_audio_seconds: float = Field(default=0.4, gt=0.0)
     streaming_silence_final_seconds: float = Field(default=1.0, gt=0.0)
     vad_threshold: float = Field(default=0.5, ge=0.0, le=1.0)

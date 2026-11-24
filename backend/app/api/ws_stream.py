@@ -85,11 +85,18 @@ class StreamSession:
             reset()
 
         self.buffer = AudioRingBuffer(cfg.audio_buffer_max_seconds, self.sr)
-        vad = VADProcessor(self.buffer, prob_fn, threshold=cfg.vad_threshold)
+        vad = VADProcessor(
+            self.buffer,
+            prob_fn,
+            threshold=cfg.vad_threshold,
+            speech_pad_ms=250,
+        )
         self.streamer = SlidingWindowStreamer(
             buffer=self.buffer,
             vad=vad,
-            preprocessor=Preprocessor(self.sr),
+            # Browser WebRTC sudah melakukan AGC/noise suppression; matikan normalisasi
+            # per-jendela agar gain tidak naik-turun dan merusak konsonan istilah CS.
+            preprocessor=Preprocessor(self.sr, normalize=False),
             engine=engine,
             policy=StreamingPolicy(cfg),
             step_seconds=self.step_seconds,

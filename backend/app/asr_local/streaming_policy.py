@@ -115,9 +115,15 @@ class StreamingPolicy:
         self._last_rtf = 0.0
 
     def get_window_seconds(self, latest_audio_sec: float) -> tuple[float, float]:
-        """Hitung rentang `[start_sec, end_sec]` jendela audio berikutnya."""
+        """Hitung rentang `[start_sec, end_sec]` jendela audio berikutnya.
+
+        Selalu jangkar `start_sec` di `_committed_audio_sec` agar tidak ada audio
+        belum-tercommit yang jatuh keluar dari sisi kiri jendela (kecuali batas darurat
+        `max_window = 2.5 * window_seconds`).
+        """
         end_sec = max(0.0, latest_audio_sec)
-        start_sec = max(self._committed_audio_sec, end_sec - self.window_seconds)
+        max_emergency_window = max(7.0, self.window_seconds * 1.5)
+        start_sec = max(self._committed_audio_sec, end_sec - max_emergency_window)
         if start_sec > end_sec:
             start_sec = end_sec
         return start_sec, end_sec
@@ -180,12 +186,13 @@ class StreamingPolicy:
                 window_start_sec + result.audio_duration_sec,
             )
 
-        # Jika ada segmen dengan durasi jelas, interpolasi proporsional sampai kata ke-N.
+        # Jika ada segmen dengan durasi jelas, interpolasi proporsional sampai kata ke-N,
+        # lalu mundurkan sedikit (0.25s) sebagai overlap aman agar awal kata berikutnya tidak terpotong.
         span_end = (
             result.segments[-1].end if result.segments else result.audio_duration_sec
         )
         ratio = committed_count / float(total_candidate_words)
-        estimated = window_start_sec + (span_end * ratio)
+        estimated = window_start_sec + (span_end * ratio) - 0.25
         return max(self._committed_audio_sec, estimated)
 
     def _commit_words(self, words: list[str], new_committed_audio_sec: float) -> str:
@@ -270,6 +277,17 @@ class StreamingPolicy:
             safe_agreed = min(lcp_len, max(0, len(candidate_words) - self.min_tail_words))
             if safe_agreed > 0:
                 commit_count = safe_agreed
+            elif result.audio_duration_sec >= self.window_seconds:
+                # Fallback saat pembicara bicara nonstop tanpa jeda dan prefix awal sedikit
+                # berubah di Whisper: tetap finalkan bagian depan (prioritas tanda baca,
+                # lalu sisakan `min_tail_words`) agar jendela maju dan tidak ada kata hilang.
+                safe_limit = max(0, len(candidate_words) - self.min_tail_words)
+                for idx in range(safe_limit - 1, -1, -1):
+                    if candidate_words[idx].endswith((*_SENTENCE_END_CHARS, ",", ";")):
+                        commit_count = idx + 1
+                        break
+                if commit_count == 0 and safe_limit > 0:
+                    commit_count = safe_limit
 
         final_text = ""
         if commit_count > 0:
